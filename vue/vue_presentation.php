@@ -87,7 +87,7 @@
 <section class="pres-section">
   <div class="pres-inner container">
     <div class="pres-img-wrap">
-      <img src="https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80" alt="Conduite SAT AUTO">
+      <img src="images/conduite.jpg" alt="Conduite SAT AUTO">
       <div class="pres-badge">⭐ 87% de réussite</div>
     </div>
     <div>
@@ -118,9 +118,9 @@
 
     <?php
     $photos = [
-      'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&q=80',
-      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&q=80',
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&q=80',
+      'images/lucie.jpg',
+      'images/carlos.jpg',
+      'images/Paul.jpg',
     ];
     $descs = [
       "Expert de la pédagogie avec plus de 12 ans d'expérience. Patient et à l'écoute, Jean adapte chaque leçon au niveau de l'élève pour garantir une progression rapide et sereine.",

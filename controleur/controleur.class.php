@@ -2,479 +2,354 @@
 require_once("modele/modele.class.php");
 
 class Controleur {
-    private $modele;
+    protected $modele;
 
     public function __construct() {
         $this->modele = new Modele();
     }
 
+    /*---------------- CONNEXION------------------------*/
 
-    public function connecter($email, $mdp, $type) {
-        $user = null;
+    public function connecterUtilisateur($email, $motDePasse, $typeUtilisateur) {
+        $utilisateurTrouve = null;
 
-        switch ($type) {
-            case 'admin':
-                $user = $this->modele->selectWhere_user($email, $mdp);
-                if ($user) {
-                    $_SESSION['user_id'] = $user['iduser'];
-                    $_SESSION['type_user'] = 'admin';
-                    $_SESSION['nom'] = $user['nom'];
-                    $_SESSION['prenom'] = $user['prenom'];
-                    $_SESSION['email'] = $user['email'];
-                    $_SESSION['droits'] = $user['droits'];
-                }
-                break;
-
-            case 'client':
-                $user = $this->modele->selectWhere_client($email, $mdp);
-                if ($user) {
-                    $_SESSION['user_id'] = $user['id_client'];
-                    $_SESSION['type_user'] = 'client';
-                    $_SESSION['nom'] = $user['nom'];
-                    $_SESSION['prenom'] = $user['prenom'];
-                    $_SESSION['email'] = $user['email'];
-                    $_SESSION['telephone'] = $user['telephone'];
-                    $_SESSION['type_client'] = $user['type'];
-                }
-                break;
-
-            case 'moniteur':
-                $user = $this->modele->selectWhere_moniteur($email, $mdp);
-                if ($user) {
-                    $_SESSION['user_id'] = $user['id_moniteur'];
-                    $_SESSION['type_user'] = 'moniteur';
-                    $_SESSION['nom'] = $user['nom'];
-                    $_SESSION['prenom'] = $user['prenom'];
-                    $_SESSION['email'] = $user['email'];
-                    $_SESSION['telephone'] = $user['telephone'];
-                    $_SESSION['agrement'] = $user['numero_agrement'];
-                }
-                break;
+        if ($typeUtilisateur === 'admin') {
+            $utilisateurTrouve = $this->modele->connexionAdmin($email, $motDePasse);
+            if ($utilisateurTrouve) {
+                $_SESSION['user_id']   = $utilisateurTrouve['iduser'];
+                $_SESSION['type_user'] = 'admin';
+                $_SESSION['nom']       = $utilisateurTrouve['nom'];
+                $_SESSION['prenom']    = $utilisateurTrouve['prenom'];
+            }
+        } elseif ($typeUtilisateur === 'client') {
+            $utilisateurTrouve = $this->modele->connexionClient($email, $motDePasse);
+            if ($utilisateurTrouve) {
+                $_SESSION['user_id']     = $utilisateurTrouve['id_client'];
+                $_SESSION['type_user']   = 'client';
+                $_SESSION['nom']         = $utilisateurTrouve['nom'];
+                $_SESSION['prenom']      = $utilisateurTrouve['prenom'];
+                $_SESSION['telephone']   = $utilisateurTrouve['telephone'];
+                $_SESSION['type_client'] = $utilisateurTrouve['type'];
+            }
+        } elseif ($typeUtilisateur === 'moniteur') {
+            $utilisateurTrouve = $this->modele->connexionMoniteur($email, $motDePasse);
+            if ($utilisateurTrouve) {
+                $_SESSION['user_id']   = $utilisateurTrouve['id_moniteur'];
+                $_SESSION['type_user'] = 'moniteur';
+                $_SESSION['nom']       = $utilisateurTrouve['nom'];
+                $_SESSION['prenom']    = $utilisateurTrouve['prenom'];
+                $_SESSION['telephone'] = $utilisateurTrouve['telephone'];
+                $_SESSION['agrement']  = $utilisateurTrouve['numero_agrement'];
+            }
         }
 
-        return ($user !== null && $user !== false);
+        return ($utilisateurTrouve !== null && $utilisateurTrouve !== false);
     }
 
-    public function deconnecter() {
+    public function deconnecterUtilisateur() {
         session_unset();
         session_destroy();
     }
 
-    public function estConnecte() {
-        return isset($_SESSION['user_id']);
+    public function estConnecte()  { return isset($_SESSION['user_id']); }
+    public function estAdmin()     { return isset($_SESSION['type_user']) && $_SESSION['type_user'] === 'admin'; }
+    public function estClient()    { return isset($_SESSION['type_user']) && $_SESSION['type_user'] === 'client'; }
+    public function estMoniteur()  { return isset($_SESSION['type_user']) && $_SESSION['type_user'] === 'moniteur'; }
+
+    public function redirigerSelonRole() {
+        if ($this->estAdmin())    return "index.php?page=dashboard_admin";
+        if ($this->estClient())   return "index.php?page=dashboard_client";
+        if ($this->estMoniteur()) return "index.php?page=dashboard_moniteur";
+        return "index.php?page=connexion";
     }
 
-    public function estAdmin() {
-        return isset($_SESSION['type_user']) && $_SESSION['type_user'] === 'admin';
+    /*------------------------- CLIENTS ------------------------*/
+
+    public function inscrireNouveauClient($donnees) {
+        if ($this->modele->emailClientExiste($donnees['email'])) {
+            return ['succes' => false, 'message' => 'Cet email est déjà utilisé.'];
+        }
+        $insertion = $this->modele->ajouterClient($donnees);
+        return $insertion
+            ? ['succes' => true,  'message' => 'Client ajouté avec succès !']
+            : ['succes' => false, 'message' => "Erreur lors de l'ajout du client."];
     }
 
-    public function estClient() {
-        return isset($_SESSION['type_user']) && $_SESSION['type_user'] === 'client';
+    public function obtenirTousLesClients() {
+        return $this->modele->listerTousLesClients();
     }
 
-    public function estMoniteur() {
-        return isset($_SESSION['type_user']) && $_SESSION['type_user'] === 'moniteur';
+    public function obtenirClientParId($idClient) {
+        return $this->modele->trouverClientParId($idClient);
     }
 
-    public function redirectionRole() {
-        if ($this->estAdmin()) {
-            return "index.php?page=dashboard_admin";
-        } elseif ($this->estClient()) {
-            return "index.php?page=dashboard_client";
-        } elseif ($this->estMoniteur()) {
-            return "index.php?page=dashboard_moniteur";
-        } else {
-            return "index.php?page=connexion";
+    public function mettreAJourClient($donnees) {
+        $modification = $this->modele->modifierClient($donnees);
+        if ($modification && $this->estClient() && $_SESSION['user_id'] == $donnees['id_client']) {
+            $_SESSION['nom']    = $donnees['nom'];
+            $_SESSION['prenom'] = $donnees['prenom'];
+        }
+        return $modification
+            ? ['succes' => true,  'message' => 'Client modifié avec succès.']
+            : ['succes' => false, 'message' => 'Erreur lors de la modification.'];
+    }
+
+    public function supprimerClient($idClient) {
+        $nbCours   = $this->modele->compterCoursDuClient($idClient);
+        $nbExamens = $this->modele->compterExamensDuClient($idClient);
+        if ($nbCours > 0 || $nbExamens > 0) {
+            return ['succes' => false, 'message' => 'Impossible : ce client a des cours ou examens liés.'];
+        }
+        $suppression = $this->modele->supprimerClient($idClient);
+        return $suppression
+            ? ['succes' => true,  'message' => 'Client supprimé avec succès.']
+            : ['succes' => false, 'message' => 'Erreur lors de la suppression.'];
+    }
+
+    /*--------------------------MONITEURS ------------------------------*/
+
+    public function ajouterNouveauMoniteur($donnees) {
+        if ($this->modele->emailMoniteurExiste($donnees['email'])) {
+            return ['succes' => false, 'message' => 'Cet email est déjà utilisé.'];
+        }
+        $insertion = $this->modele->ajouterMoniteur($donnees);
+        return $insertion
+            ? ['succes' => true,  'message' => 'Moniteur ajouté avec succès.']
+            : ['succes' => false, 'message' => "Erreur lors de l'ajout du moniteur."];
+    }
+
+    public function obtenirTousLesMoniteurs() {
+        return $this->modele->listerTousLesMoniteurs();
+    }
+
+    public function obtenirMoniteurParId($idMoniteur) {
+        return $this->modele->trouverMoniteurParId($idMoniteur);
+    }
+
+    public function obtenirMoniteursPageAccueil() {
+        return $this->modele->listerMoniteursPageAccueil();
+    }
+
+    public function obtenirElevesMoniteur($idMoniteur) {
+        return $this->modele->listerElevesMoniteur($idMoniteur);
+    }
+
+    public function mettreAJourMoniteur($donnees) {
+        $modification = $this->modele->modifierMoniteur($donnees);
+        if ($modification && $this->estMoniteur() && $_SESSION['user_id'] == $donnees['id_moniteur']) {
+            $_SESSION['nom']    = $donnees['nom'];
+            $_SESSION['prenom'] = $donnees['prenom'];
+        }
+        return $modification
+            ? ['succes' => true,  'message' => 'Moniteur modifié avec succès.']
+            : ['succes' => false, 'message' => 'Erreur lors de la modification.'];
+    }
+
+    public function supprimerMoniteur($idMoniteur) {
+        $nbCours = $this->modele->compterCoursDuMoniteur($idMoniteur);
+        if ($nbCours > 0) {
+            return ['succes' => false, 'message' => 'Impossible : ce moniteur a des cours liés.'];
+        }
+        $suppression = $this->modele->supprimerMoniteur($idMoniteur);
+        return $suppression
+            ? ['succes' => true,  'message' => 'Moniteur supprimé avec succès.']
+            : ['succes' => false, 'message' => 'Erreur lors de la suppression.'];
+    }
+
+
+    /*------------------ COURS THEORIQUES -----------------------*/
+
+    public function creerCoursTheorique($donnees) {
+        $insertion = $this->modele->ajouterCoursTheorique($donnees);
+        return $insertion
+            ? ['succes' => true,  'message' => 'Cours théorique ajouté avec succès.']
+            : ['succes' => false, 'message' => "Erreur lors de l'ajout du cours."];
+    }
+
+    public function obtenirTousLesCoursTheoriques() {
+        return $this->modele->listerTousLesCoursTheoriques();
+    }
+
+    public function obtenirCoursTheoriquesClient($idClient) {
+        return $this->modele->listerCoursTheoriquesClient($idClient);
+    }
+
+    public function obtenirCoursTheoriquesDisponibles($idClient) {
+        return $this->modele->listerCoursTheoriquesDisponibles($idClient);
+    }
+
+    public function inscrireClientAuCoursTheorique($idClient, $idCours) {
+        try {
+            $inscription = $this->modele->inscrireClientAuCoursTheorique($idClient, $idCours);
+            return $inscription
+                ? ['succes' => true,  'message' => 'Inscription réussie.']
+                : ['succes' => false, 'message' => "Erreur lors de l'inscription."];
+        } catch (Exception $e) {
+            return ['succes' => false, 'message' => 'Vous êtes déjà inscrit à ce cours.'];
         }
     }
 
-   
-    public function getMoniteursHome() {
-        return $this->modele->selectAll_moniteurs_home();
-    }
-
-    
-   
-    public function inscrireClient($tab) {
-        if ($this->modele->emailExists_client($tab['email'])) {
-            return ['ok' => false, 'msg' => 'Cet email est déjà utilisé.'];
-        }
-        $ok = $this->modele->insert_client($tab);
-        return $ok
-            ? ['ok' => true, 'msg' => 'Client ajouté avec succès !']
-            : ['ok' => false, 'msg' => 'Erreur lors de l\'ajout du client.'];
-    }
-
-    
-    public function getAllClients() {
-        return $this->modele->selectAll_clients();
-    }
-
-    
-    public function getClientById($id_client) {
-        return $this->modele->select_client_by_id($id_client);
-    }
-
-    public function modifierClient($tab) {
-        $ok = $this->modele->update_client($tab);
-        if ($ok && $this->estClient() && $_SESSION['user_id'] == $tab['id_client']) {
-            $_SESSION['nom'] = $tab['nom'];
-            $_SESSION['prenom'] = $tab['prenom'];
-            $_SESSION['telephone'] = $tab['telephone'];
-            $_SESSION['type_client'] = $tab['type'];
-        }
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Client modifié avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la modification.'];
-    }
-
-    public function supprimerClient($id_client) {
-
-        $nb_cours = $this->modele->count_cours_pratiques_client($id_client);
-        $nb_examens = $this->modele->count_examens_client($id_client);
-        
-        if ($nb_cours > 0 || $nb_examens > 0) {
-            return ['ok' => false, 'msg' => 'Impossible de supprimer : ce client a des cours ou examens associés.'];
-        }
-        
-        $ok = $this->modele->delete_client($id_client);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Client supprimé avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la suppression.'];
+    public function supprimerCoursTheorique($idCours) {
+        $suppression = $this->modele->supprimerCoursTheorique($idCours);
+        return $suppression
+            ? ['succes' => true,  'message' => 'Cours théorique supprimé.']
+            : ['succes' => false, 'message' => 'Erreur lors de la suppression.'];
     }
 
 
-    public function rechercherClients($filtre) {
-        return $this->modele->selectLike_clients($filtre);
+    /* --------------------COURS PRATIQUES-----------------------*/
+
+
+    public function planifierCoursPratique($donnees) {
+        $insertion = $this->modele->ajouterCoursPratique($donnees);
+        return $insertion
+            ? ['succes' => true,  'message' => 'Cours pratique planifié avec succès.']
+            : ['succes' => false, 'message' => "Erreur lors de l'ajout du cours."];
     }
 
-
-    
-    public function ajouterMoniteur($tab) {
-        if ($this->modele->emailExists_moniteur($tab['email'])) {
-            return ['ok' => false, 'msg' => 'Cet email est déjà utilisé.'];
-        }
-        $ok = $this->modele->insert_moniteur($tab);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Moniteur ajouté avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de l\'ajout du moniteur.'];
+    public function obtenirTousLesCoursPratiques() {
+        return $this->modele->listerTousLesCoursPratiques();
     }
 
-
-    public function getAllMoniteurs() {
-        return $this->modele->selectAll_moniteurs();
+    public function obtenirCoursPratiquesClient($idClient) {
+        return $this->modele->listerCoursPratiquesClient($idClient);
     }
 
-    
-    public function getMoniteurById($id_moniteur) {
-        return $this->modele->select_moniteur_by_id($id_moniteur);
+    public function obtenirCoursPratiquesMoniteur($idMoniteur) {
+        return $this->modele->listerCoursPratiquesMoniteur($idMoniteur);
     }
 
-
-    public function modifierMoniteur($tab) {
-        $ok = $this->modele->update_moniteur($tab);
-        if ($ok && $this->estMoniteur() && $_SESSION['user_id'] == $tab['id_moniteur']) {
-            $_SESSION['nom'] = $tab['nom'];
-            $_SESSION['prenom'] = $tab['prenom'];
-            $_SESSION['telephone'] = $tab['telephone'];
-        }
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Moniteur modifié avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la modification.'];
+    public function obtenirProchainsCoursDuClient($idClient) {
+        return $this->modele->listerProchainsCoursDuClient($idClient);
     }
 
-    
-    public function supprimerMoniteur($id_moniteur) {
-        
-        $nb_cours = $this->modele->count_cours_pratiques_moniteur($id_moniteur);
-        
-        if ($nb_cours > 0) {
-            return ['ok' => false, 'msg' => 'Impossible de supprimer : ce moniteur a des cours associés.'];
-        }
-        
-        $ok = $this->modele->delete_moniteur($id_moniteur);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Moniteur supprimé avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la suppression.'];
+    public function obtenirProchainsCoursDuMoniteur($idMoniteur) {
+        return $this->modele->listerProchainsCoursDuMoniteur($idMoniteur);
     }
 
-    
-    
-    public function ajouterCoursTheorique($tab) {
-        $ok = $this->modele->insert_cours_theorique($tab);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Cours théorique ajouté avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de l\'ajout du cours.'];
+    public function terminerCoursPratique($idSeance) {
+        $cours = $this->modele->trouverCoursPratiqueParId($idSeance);
+        if (!$cours) return ['succes' => false, 'message' => 'Cours introuvable.'];
+        $cours['statut'] = 'termine';
+        $modification = $this->modele->modifierCoursPratique($cours);
+        return $modification
+            ? ['succes' => true,  'message' => 'Cours marqué comme terminé.']
+            : ['succes' => false, 'message' => 'Erreur lors de la validation.'];
     }
 
-    
-    public function getAllCoursTheoriques() {
-        return $this->modele->selectAll_cours_theoriques();
+    public function annulerCoursPratique($idSeance) {
+        $cours = $this->modele->trouverCoursPratiqueParId($idSeance);
+        if (!$cours) return ['succes' => false, 'message' => 'Cours introuvable.'];
+        $cours['statut'] = 'annule';
+        $modification = $this->modele->modifierCoursPratique($cours);
+        return $modification
+            ? ['succes' => true,  'message' => 'Cours annulé.']
+            : ['succes' => false, 'message' => "Erreur lors de l'annulation."];
     }
 
-    public function getCoursTheoriquesClient($id_client) {
-        return $this->modele->selectAll_cours_theoriques_client($id_client);
+    public function supprimerCoursPratique($idSeance) {
+        $suppression = $this->modele->supprimerCoursPratique($idSeance);
+        return $suppression
+            ? ['succes' => true,  'message' => 'Cours supprimé.']
+            : ['succes' => false, 'message' => 'Erreur lors de la suppression.'];
     }
 
-    
-    public function getCoursTheoriquesDisponibles($id_client) {
-        return $this->modele->select_cours_theoriques_disponibles($id_client);
+    /*---------------------EXAMENS -------------------------*/
+
+    public function planifierExamen($donnees) {
+        $insertion = $this->modele->ajouterExamen($donnees);
+        return $insertion
+            ? ['succes' => true,  'message' => 'Examen planifié avec succès.']
+            : ['succes' => false, 'message' => "Erreur lors de la planification."];
     }
 
-    
-    public function modifierCoursTheorique($tab) {
-        $ok = $this->modele->update_cours_theorique($tab);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Cours théorique modifié avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la modification.'];
+    public function obtenirTousLesExamens() {
+        return $this->modele->listerTousLesExamens();
     }
 
-   
-    public function supprimerCoursTheorique($id_cours) {
-        $ok = $this->modele->delete_cours_theorique($id_cours);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Cours théorique supprimé avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la suppression.'];
+    public function obtenirExamensClient($idClient) {
+        return $this->modele->listerExamensDuClient($idClient);
     }
 
-   
-    public function inscrireClientCoursTheorique($id_client, $id_cours) {
-        $ok = $this->modele->inscrire_client_cours_theorique($id_client, $id_cours);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Inscription réussie au cours théorique.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de l\'inscription.'];
+    public function enregistrerResultatExamen($idExamen, $resultat, $notes = null) {
+        $examen = $this->modele->trouverExamenParId($idExamen);
+        if (!$examen) return ['succes' => false, 'message' => 'Examen introuvable.'];
+        $examen['resultat'] = $resultat;
+        $examen['notes']    = $notes ?? $examen['notes'];
+        $modification = $this->modele->modifierExamen($examen);
+        return $modification
+            ? ['succes' => true,  'message' => 'Résultat enregistré avec succès.']
+            : ['succes' => false, 'message' => "Erreur lors de l'enregistrement."];
     }
 
-    
-    public function ajouterCoursPratique($tab) {
-        $ok = $this->modele->insert_cours_pratique($tab);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Cours pratique planifié avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la planification.'];
+    public function supprimerExamen($idExamen) {
+        $suppression = $this->modele->supprimerExamen($idExamen);
+        return $suppression
+            ? ['succes' => true,  'message' => 'Examen supprimé.']
+            : ['succes' => false, 'message' => 'Erreur lors de la suppression.'];
     }
 
-   
-    public function getAllCoursPratiques() {
-        return $this->modele->selectAll_cours_pratiques();
+    public function obtenirMoniteurPrincipalClient($idClient) {
+        return $this->modele->trouverMoniteurPrincipalDuClient($idClient);
     }
 
-   
-    public function getCoursPratiquesClient($id_client) {
-        return $this->modele->selectAll_cours_pratiques_client($id_client);
-    }
+    /* ---------------------------DONNEES DASHBOARDS--------------------------------*/
 
-    
-    public function getCoursPratiquesMoniteur($id_moniteur) {
-        return $this->modele->selectAll_cours_pratiques_moniteur($id_moniteur);
-    }
-
-  
-    public function getCoursPratiquesAVenirClient($id_client) {
-        return $this->modele->select_cours_pratiques_a_venir_client($id_client);
-    }
-
-    
-    public function getCoursPratiquesAVenirMoniteur($id_moniteur) {
-        return $this->modele->select_cours_pratiques_a_venir_moniteur($id_moniteur);
-    }
-
-    
-    public function modifierCoursPratique($tab) {
-        $ok = $this->modele->update_cours_pratique($tab);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Cours modifié avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la modification.'];
-    }
-
-   
-    public function supprimerCoursPratique($id_seance) {
-        $ok = $this->modele->delete_cours_pratique($id_seance);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Cours supprimé avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la suppression.'];
-    }
-
-    public function validerCoursPratique($id_seance, $notes = null) {
-        $cours = $this->modele->select_cours_pratique_by_id($id_seance);
-        if (!$cours) {
-            return ['ok' => false, 'msg' => 'Cours introuvable.'];
-        }
-
-        $tab = [
-            'id_seance' => $id_seance,
-            'date_seance' => $cours['date_seance'],
-            'heure_debut' => $cours['heure_debut'],
-            'heure_fin' => $cours['heure_fin'],
-            'id_moniteur' => $cours['id_moniteur'],
-            'id_client' => $cours['id_client'],
-            'type_vehicule' => $cours['type_vehicule'],
-            'statut' => 'termine',
-            'notes' => $notes ? $notes : $cours['notes']
-        ];
-
-        return $this->modifierCoursPratique($tab);
-    }
-
-
-    public function annulerCoursPratique($id_seance) {
-        $cours = $this->modele->select_cours_pratique_by_id($id_seance);
-        if (!$cours) {
-            return ['ok' => false, 'msg' => 'Cours introuvable.'];
-        }
-
-        $tab = [
-            'id_seance' => $id_seance,
-            'date_seance' => $cours['date_seance'],
-            'heure_debut' => $cours['heure_debut'],
-            'heure_fin' => $cours['heure_fin'],
-            'id_moniteur' => $cours['id_moniteur'],
-            'id_client' => $cours['id_client'],
-            'type_vehicule' => $cours['type_vehicule'],
-            'statut' => 'annule',
-            'notes' => $cours['notes']
-        ];
-
-        return $this->modifierCoursPratique($tab);
-    }
-
-  
-    
-
-    public function ajouterExamen($tab) {
-        $ok = $this->modele->insert_examen($tab);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Examen planifié avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la planification.'];
-    }
-
-    public function getAllExamens() {
-        return $this->modele->selectAll_examens();
-    }
-
-
-    public function getExamensClient($id_client) {
-        return $this->modele->selectAll_examens_client($id_client);
-    }
-
-
-    public function modifierExamen($tab) {
-        $ok = $this->modele->update_examen($tab);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Examen modifié avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la modification.'];
-    }
-
-    public function supprimerExamen($id_examen) {
-        $ok = $this->modele->delete_examen($id_examen);
-        return $ok 
-            ? ['ok' => true, 'msg' => 'Examen supprimé avec succès.'] 
-            : ['ok' => false, 'msg' => 'Erreur lors de la suppression.'];
-    }
-
-  
-    public function enregistrerResultatExamen($id_examen, $resultat, $notes = null) {
-        $examen = $this->modele->select_examen_by_id($id_examen);
-        if (!$examen) {
-            return ['ok' => false, 'msg' => 'Examen introuvable.'];
-        }
-
-        $tab = [
-            'id_examen' => $id_examen,
-            'type' => $examen['type'],
-            'date_examen' => $examen['date_examen'],
-            'heure' => $examen['heure'],
-            'id_client' => $examen['id_client'],
-            'lieu' => $examen['lieu'],
-            'resultat' => $resultat,
-            'notes' => $notes ? $notes : $examen['notes']
-        ];
-
-        return $this->modifierExamen($tab);
-    }
-
-    public function getElevesMoniteur($id_moniteur) {
-        return $this->modele->selectAll_eleves_moniteur($id_moniteur);
-    }
-
-    public function getMoniteurPrincipalClient($id_client) {
-        return $this->modele->select_moniteur_principal_client($id_client);
-    }
-
-  
     public function getDashAdmin() {
         return [
-            'clients' => $this->modele->selectAll_clients(),
-            'moniteurs' => $this->modele->selectAll_moniteurs(),
-            'cours_theoriques' => $this->modele->selectAll_cours_theoriques(),
-            'cours_pratiques' => $this->modele->selectAll_cours_pratiques(),
-            'examens' => $this->modele->selectAll_examens(),
+            'clients'          => $this->modele->listerTousLesClients(),
+            'moniteurs'        => $this->modele->listerTousLesMoniteurs(),
+            'cours_theoriques' => $this->modele->listerTousLesCoursTheoriques(),
+            'cours_pratiques'  => $this->modele->listerTousLesCoursPratiques(),
+            'examens'          => $this->modele->listerTousLesExamens(),
             'stats' => [
-                'nb_clients' => $this->modele->countTable('client'),
-                'nb_moniteurs' => $this->modele->countTable('moniteur'),
-                'nb_cours_theoriques' => $this->modele->countTable('cours_theorique'),
-                'nb_cours_pratiques' => $this->modele->countTable('cours_pratique'),
-                'nb_examens' => $this->modele->countTable('examen')
+                'nb_clients'          => $this->modele->compterLignesDansTable('client'),
+                'nb_moniteurs'        => $this->modele->compterLignesDansTable('moniteur'),
+                'nb_cours_theoriques' => $this->modele->compterLignesDansTable('cours_theorique'),
+                'nb_cours_pratiques'  => $this->modele->compterLignesDansTable('cours_pratique'),
+                'nb_examens'          => $this->modele->compterLignesDansTable('examen')
             ]
         ];
     }
 
-
-    public function getDashClient($id_client) {
-        $client = $this->getClientById($id_client);
-        $moniteur_principal = $this->getMoniteurPrincipalClient($id_client);
-        $progression = $this->modele->get_progression_client($id_client);
-
+    public function getDashClient($idClient) {
+        $progression   = $this->modele->calculerProgressionClient($idClient);
+        $coursAVenir   = $this->modele->listerProchainsCoursDuClient($idClient);
         return [
-            'client' => $client,
+            'client'                       => $this->modele->trouverClientParId($idClient),
+            'cours_pratiques'              => $this->modele->listerCoursPratiquesClient($idClient),
+            'cours_a_venir'                => $coursAVenir,
+            'cours_theoriques'             => $this->modele->listerCoursTheoriquesClient($idClient),
+            'cours_theoriques_disponibles' => $this->modele->listerCoursTheoriquesDisponibles($idClient),
+            'examens'                      => $this->modele->listerExamensDuClient($idClient),
+            'moniteur_principal'           => $this->modele->trouverMoniteurPrincipalDuClient($idClient),
+            'prochain_cours'               => $coursAVenir[0] ?? null,
             'stats' => [
-                'nb_cours_pratiques' => $this->modele->count_cours_pratiques_client($id_client),
-                'nb_cours_theoriques' => $this->modele->count_cours_theoriques_client($id_client),
-                'nb_examens' => $this->modele->count_examens_client($id_client),
-                'nb_examens_reussis' => $this->modele->count_examens_reussis_client($id_client),
-                'heures_conduite' => $this->modele->get_heures_conduite_client($id_client),
-                'progression' => $progression
-            ],
-            'cours_pratiques' => $this->getCoursPratiquesClient($id_client),
-            'cours_a_venir' => $this->getCoursPratiquesAVenirClient($id_client),
-            'cours_theoriques' => $this->getCoursTheoriquesClient($id_client),
-            'cours_theoriques_disponibles' => $this->getCoursTheoriquesDisponibles($id_client),
-            'examens' => $this->getExamensClient($id_client),
-            'moniteur_principal' => $moniteur_principal,
-            'prochain_cours' => !empty($this->getCoursPratiquesAVenirClient($id_client)) ? $this->getCoursPratiquesAVenirClient($id_client)[0] : null
+                'nb_cours_pratiques'  => $this->modele->compterCoursDuClient($idClient),
+                'nb_cours_theoriques' => $this->modele->compterCoursTheoriquesDuClient($idClient),
+                'nb_examens'          => $this->modele->compterExamensDuClient($idClient),
+                'nb_examens_reussis'  => $this->modele->compterExamensReussisDuClient($idClient),
+                'heures_conduite'     => $this->modele->calculerHeuresDeConduite($idClient),
+                'progression'         => $progression
+            ]
         ];
     }
 
-
-    public function getDashMoniteur($id_moniteur) {
-        $moniteur = $this->getMoniteurById($id_moniteur);
-        $eleves = $this->getElevesMoniteur($id_moniteur);
-        $cours_pratiques = $this->getCoursPratiquesMoniteur($id_moniteur);
-        $cours_a_venir = $this->getCoursPratiquesAVenirMoniteur($id_moniteur);
-
+    public function getDashMoniteur($idMoniteur) {
+        $coursAVenir = $this->modele->listerProchainsCoursDuMoniteur($idMoniteur);
         return [
-            'moniteur' => $moniteur,
+            'moniteur'        => $this->modele->trouverMoniteurParId($idMoniteur),
+            'eleves'          => $this->modele->listerElevesMoniteur($idMoniteur),
+            'cours_pratiques' => $this->modele->listerCoursPratiquesMoniteur($idMoniteur),
+            'cours_a_venir'   => $coursAVenir,
+            'prochain_cours'  => $coursAVenir[0] ?? null,
             'stats' => [
-                'nb_eleves' => $this->modele->count_eleves_moniteur($id_moniteur),
-                'nb_cours_total' => $this->modele->count_cours_pratiques_moniteur($id_moniteur),
-                'nb_cours_termines' => $this->modele->count_cours_termines_moniteur($id_moniteur),
-                'nb_cours_a_venir' => count($cours_a_venir),
-                'heures_enseignees' => $this->modele->get_heures_enseignees_moniteur($id_moniteur)
-            ],
-            'eleves' => $eleves,
-            'cours_pratiques' => $cours_pratiques,
-            'cours_a_venir' => $cours_a_venir,
-            'prochain_cours' => !empty($cours_a_venir) ? $cours_a_venir[0] : null
-        ];
-    }
-
-
-    public function getStatsGlobales() {
-        return [
-            'clients' => $this->modele->countTable('client'),
-            'moniteurs' => $this->modele->countTable('moniteur'),
-            'cours_pratiques' => $this->modele->countTable('cours_pratique'),
-            'cours_theoriques' => $this->modele->countTable('cours_theorique'),
-            'examens' => $this->modele->countTable('examen')
+                'nb_eleves'          => $this->modele->compterElevesMoniteur($idMoniteur),
+                'nb_cours_total'     => $this->modele->compterCoursDuMoniteur($idMoniteur),
+                'nb_cours_termines'  => $this->modele->compterCoursTerminesDuMoniteur($idMoniteur),
+                'nb_cours_a_venir'   => count($coursAVenir),
+                'heures_enseignees'  => $this->modele->compterCoursTerminesDuMoniteur($idMoniteur)
+            ]
         ];
     }
 }
